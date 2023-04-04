@@ -1,0 +1,54 @@
+StmApp {
+    layout: grid;
+    grid-size: 1 4;
+    grid-rows: 1fr 2fr 1fr 1fr;
+    height: 100%;
+    padding: 1;
+}
+
+InfoDisplays {
+    layout: grid;
+    background: $boost;
+    grid-size: 3 1;
+    grid-rows: 1fr;
+    grid-columns: 1fr;
+    margin: 1;
+    height: 60%;
+    min-width: 50;
+    padding-top: 1;
+    padding-bottom: 1;
+    grid-gutter: 1;
+}
+
+TextBox {
+    content-align: left top;
+    height: 100%;
+    background: black;
+}
+
+OptBytesDisplay {
+    height: 100%;
+}
+
+StringPutter {
+    height: 20%;
+    padding-left: 4;
+    padding-right: 4;
+    border: solid orange;
+    background: black;
+}
+
+StringGetter {
+    padding-left: 1;
+    padding-right: 1;
+    border: solid orange;
+}
+
+StringGetter.focus {
+    border: solid yellow;
+}
+
+#banner {
+    background: black;
+    height: 5;
+}
