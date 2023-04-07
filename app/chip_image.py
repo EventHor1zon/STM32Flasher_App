@@ -69,7 +69,7 @@ class ChipImage:
         dev_type = self.dev_type
         density = self.density
         r = CHIP_IMG.split("\n")
-        ## format the name row
+        # format the name row
         if len(dev_type) > CHIP_VALUE_WIDTH:
             dev_type = dev_type[:CHIP_VALUE_WIDTH]
         spaces = CHIP_VALUE_WIDTH - len(dev_type)
@@ -82,7 +82,7 @@ class ChipImage:
             + ("▄")
         )
         r[4] = name
-        ## format the density row
+        # format the density row
         if len(density) > 13:
             density = density[:13]
 
@@ -115,7 +115,7 @@ class ChipImage:
         if self.step < 5:
             line = lines[0]
             elements = line.split(" ")
-            ## ['', '', '█', '█', '█', '█', '█', '█', '', '']
+            # ['', '', '█', '█', '█', '█', '█', '█', '', '']
             elements[
                 CHIP_IMG_OFFSET + self.step + 2
             ] = f"[{self.colour}]{elements[CHIP_IMG_OFFSET + self.step + 2]}[/{self.colour}]"
@@ -135,7 +135,7 @@ class ChipImage:
         elif self.step < 18:
             line = lines[-2]
             elements = line.split(" ")
-            ## ['', '', '█', '█', '█', '█', '█', '█', '', '']
+            # ['', '', '█', '█', '█', '█', '█', '█', '', '']
             elements[
                 -(self.step - 11)
             ] = f"[{self.colour}]{elements[-(self.step - 11)]}[/{self.colour}]"

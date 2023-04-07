@@ -1,4 +1,4 @@
-##
+#
 #   Attempt to applify STM flasher with textual's tutorial
 #   Going pretty well, impressed with the appearance now
 #
@@ -308,19 +308,19 @@ class InfoDisplays(Static):
 
 class StmApp(App):
 
-    ## Path to CSS - used mostly for layout
-    ## Try to use config variables for easier styling
+    # Path to CSS - used mostly for layout
+    # Try to use config variables for easier styling
     CSS_PATH = "./css/stmapp_css.css"
 
-    ## keep track of expected input so we know
-    ## when to pay attention to the input box
+    # keep track of expected input so we know
+    # when to pay attention to the input box
     state = STATE_IDLE_DISCONNECTED
 
-    ## Device model
+    # Device model
     stm_device = STMInterface()
 
-    ## internal state variables
-    ## TODO: use less of these
+    # internal state variables
+    # TODO: use less of these
     #   Need - connect-opts
     #        - io opts
 
@@ -332,7 +332,7 @@ class StmApp(App):
     offset = 0
     filepath = None
 
-    ## Default tables & widget definitions
+    # Default tables & widget definitions
     conn_table = None
     dev_table = None
     chip_image = ""
@@ -352,7 +352,7 @@ class StmApp(App):
     msg_log = StringPutter(max_lines=8, name="msg_log", id="msg_log")
     input = StringGetter(placeholder=">>>")
 
-    ### initialise page info
+    ## initialise page info
     def build_items(self):
 
         self.default_conn_info.add_row("", "")
@@ -363,7 +363,7 @@ class StmApp(App):
         self.default_conn_info.add_row("Port         ", f"{self.conn_port}")
         self.default_conn_info.add_row("Baud         ", f"{self.conn_baud}")
 
-        ## build the keypress menu items
+        # build the keypress menu items
         self.dc_menu_items = [
             {
                 "key": config.KEY_PORT,
@@ -507,7 +507,7 @@ class StmApp(App):
 
         self.active_menu = self.dc_menu_items
 
-        ## there's probably a more elegent way of doing this but it works
+        # there's probably a more elegent way of doing this but it works
         self.main_display = InfoDisplays(
             menu=self.build_menu(),
             info=Panel(
@@ -531,7 +531,7 @@ class StmApp(App):
         self.msg_queue = Queue(10)
         super().__init__(driver_class, css_path, watch_css)
 
-    ### Widgets & tables updates
+    ## Widgets & tables updates
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -773,7 +773,7 @@ class StmApp(App):
         finally:
             return success
 
-    ### OPERATIONS ##
+    ## OPERATIONS #
 
     async def long_running_task(self, function, *func_args, colour: str = "red"):
         dev_info = self.get_widget_by_id("info")
@@ -803,7 +803,8 @@ class StmApp(App):
         return task.result()
 
     async def input_to_attribute(self, msg: str, attribute: str, ex_type=str):
-        """awaits user input and sets the variable
+        """!
+        @brief awaits user input and sets the variable
         @param attribute - the attribute to set
         @param ex_type - expected type (tries to convert)
         """
@@ -822,7 +823,7 @@ class StmApp(App):
         finally:
             self.state = prev_state
 
-    ### KEYPRESS HANDLERS ###
+    ## KEYPRESS HANDLERS ##
 
     async def handle_vers_keypress(self):
         """handle print version keypress"""
@@ -974,7 +975,7 @@ class StmApp(App):
 
     async def handle_key(self, key: str):
 
-        ## debug keybindings
+        # debug keybindings
         if key == "@":
             self.action_screenshot()
 
@@ -982,7 +983,7 @@ class StmApp(App):
             if key == "l":
                 await self.long_running_task(sleep, 5)
 
-        ## menu commands
+        # menu commands
         for command in self.active_menu:
             if key == command["key"] and command["action"] is not None:
                 asyncio.create_task(command["action"]())
@@ -1031,17 +1032,17 @@ class StmApp(App):
                     )
                 )
 
-        ## clear the self variables
+        # clear the self variables
         self.read_len = 0
         self.filepath = None
         self.offset = 0
 
     async def on_input_submitted(self, message: Input.Submitted) -> None:
         if self.state != STATE_AWAITING_INPUT:
-            ## we are not expecting any inputs so ignore here
+            # we are not expecting any inputs so ignore here
             pass
         else:
-            ## send to message queue
+            # send to message queue
             await self.msg_queue.put(message.value)
 
 
