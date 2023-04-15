@@ -45,3 +45,144 @@ clear_table_format = {
     "box": None,
     "padding": (0, 1),
 }
+
+
+# build the keypress menu items
+dc_menu_items = [
+    {
+        "key": KEY_PORT,
+        "description": "Set Port",
+        "state": STATE_IDLE_DISCONNECTED,
+    },
+    {
+        "key": KEY_BAUD,
+        "description": "Set Baud",
+        "state": STATE_IDLE_DISCONNECTED,
+    },
+    {
+        "key": KEY_CONN,
+        "description": "Connect",
+        "state": STATE_IDLE_DISCONNECTED,
+        "action": self.handle_connect_keypress,
+    },
+]
+
+any_menu_items = [
+    {
+        "key": KEY_EXIT,
+        "description": "Exit",
+        "state": STATE_ANY,
+        "action": self.handle_exit_keypress,
+    },
+    {
+        "key": KEY_CNCL,
+        "description": "Cancel",
+        "state": STATE_ANY,
+        "action": self.handle_cancel_keypress,
+    },
+    {
+        "key": KEY_VERS,
+        "description": "Print Version",
+        "state": STATE_ANY,
+        "action": self.handle_vers_keypress,
+    },
+]
+
+read_menu = [
+    {
+        "key": KEY_FILE,
+        "description": "set file path",
+        "action": self.handle_filepath_keypress,
+        "state": STATE_READ_MEM,
+    },
+    {
+        "key": "o",
+        "description": "Configure offset",
+        "action": self.handle_offset_keypress,
+        "state": STATE_READ_MEM,
+    },
+    {
+        "key": "l",
+        "description": "Read length",
+        "action": self.handle_length_keypress,
+        "state": STATE_READ_MEM,
+    },
+    {
+        "key": KEY_RDFS,
+        "description": "Read memory",
+        "action": None,
+        "state": STATE_READ_MEM,
+    },
+]
+
+upload_menu_items = [
+    {
+        "key": KEY_FILE,
+        "description": "set file path",
+        "action": None,
+        "state": STATE_UPLOAD_APP,
+    },
+    {
+        "key": "o",
+        "description": "Configure offset",
+        "action": None,
+        "state": STATE_UPLOAD_APP,
+    },
+    {
+        "key": "w",
+        "description": "Write file contents to flash",
+        "action": None,
+        "state": STATE_UPLOAD_APP,
+    },
+]
+
+self.con_menu_items = [
+    {
+        "key": KEY_RDRM,
+        "description": "Read RAM to file",
+        "state": STATE_IDLE_CONNECTED,
+        "action": None,
+    },
+    {
+        "key": KEY_WRRM,
+        "description": "Write file data to ram",
+        "state": STATE_IDLE_CONNECTED,
+        "action": None,
+    },
+    {
+        "key": KEY_UPLD,
+        "description": "Upload application to flash",
+        "state": STATE_IDLE_CONNECTED,
+        "action": None,
+    },
+    {
+        "key": KEY_ERFS,
+        "description": "Erase all flash",
+        "state": STATE_IDLE_CONNECTED,
+        "action": self.handle_erase_keypress,
+    },
+    {
+        "key": KEY_RDFS,
+        "description": "Read flash memory",
+        "state": STATE_IDLE_CONNECTED,
+        "action": self.handle_readflash_keypress,
+    },
+    {
+        "key": KEY_DCON,
+        "description": "Disconnect from device",
+        "state": STATE_IDLE_CONNECTED,
+        "action": None,
+    },
+    {
+        "key": KEY_RDPG,
+        "description": "Read flash pages",
+        "state": STATE_IDLE_CONNECTED,
+        "action": self.handle_readpages_keypress,
+    },
+    {
+        "key": KEY_OPTB,
+        "description": "Configure Option Bytes",
+        "action": self.handle_option_bytes,
+        "state": STATE_IDLE_CONNECTED,
+    },
+]
