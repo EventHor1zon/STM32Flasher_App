@@ -2,6 +2,8 @@ from rich.box import HEAVY, HEAVY_EDGE, SQUARE
 from rich.style import StyleType, Style
 
 
+CSS_PATH = "./css/stmapp_css.css"
+
 KEY_EXIT = "x"  # exit the application
 KEY_VERS = "v"  # print the app version
 KEY_PORT = "p"  # set the serial port

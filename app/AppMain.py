@@ -7,7 +7,7 @@
 #       IDLE (disconnected)  -> config port
 #                            -> config baud
 #                            -> connect (state = IDLE_CONNECTED)
-#       IDLE (connected)     -> config option bytes (state = CONFIG_OPT_BYTES)
+#       IDLE (connected_state)     -> config option bytes (state = CONFIG_OPT_BYTES)
 #                            -> read memory (state = READ_MEM)
 #                            -> upload application (state = WRITE_MEM)
 #                            -> erase flash (state = ERASE_MEM)
@@ -265,7 +265,7 @@ class StringPutter(TextLog):
         return super().on_mount()
 
 
-class InfoDisplays(Static):
+class InfoSection(Static):
     """class to display the top three columns of the app
     display and update information about the device
     and commands
@@ -307,10 +307,40 @@ class InfoDisplays(Static):
 
 
 class StmApp(App):
+    """StmApp - the application class for the application
+    Application structure as follows:
+
+    ```
+        -------------------------------------
+        [                Banner              ]
+        [   menu  ][  conn info  ][  opts    ]
+        [   sect  ][  dev info   ][  sect    ]
+        [   quit  ][  chip img   ][          ]
+        --------------------------------------
+        [          Output                    ]
+        [                                    ]
+        --------------------------------------
+        [           Input                    ]
+        --------------------------------------
+    ```
+    Nomenclature - for sanity's sake, refer to
+                   each of the 3 display sections
+                   as "sections"
+                 - refer to each panel within those
+                    sections as a "panel"
+                 - For menu section, only one panel
+                (menu items) is required
+                 - For Info section (middle), 3 panels are
+                reuired: Connection panel, device panel and image panel
+                - For Opts section, 2 panels are required:
+                the option table and the option bytes
+
+
+    """
 
     # Path to CSS - used mostly for layout
     # Try to use config variables for easier styling
-    CSS_PATH = "./css/stmapp_css.css"
+    CSS_PATH = config.CSS_PATH
 
     # keep track of expected input so we know
     # when to pay attention to the input box
@@ -324,7 +354,9 @@ class StmApp(App):
     #   Need - connect-opts
     #        - io opts
 
-    connected = False
+    connected_state = False
+
+    # user supplied details
     conn_port = ""
     conn_baud = 9600
     address = None
@@ -337,8 +369,8 @@ class StmApp(App):
     dev_table = None
     chip_image = ""
     chip = None
-    default_conn_info = Table("", "", **config.clear_table_format)
 
+    # default device info panel
     default_device_info = Panel(
         Text.from_markup(
             "No Device",
@@ -350,45 +382,35 @@ class StmApp(App):
 
     banner = Static(APPLICATION_BANNER, expand=True, id="banner")
     msg_log = StringPutter(max_lines=8, name="msg_log", id="msg_log")
-    input = StringGetter(placeholder=">>>")
+    input_box = StringGetter(placeholder=">>>")
 
     ## initialise page info
     def build_items(self):
-
-        self.default_conn_info.add_row("", "")
-        self.default_conn_info.add_row(
-            "Connected    ",
-            binary_colour(self.connected, "connected", "disconnected"),
-        )
-        self.default_conn_info.add_row("Port         ", f"{self.conn_port}")
-        self.default_conn_info.add_row("Baud         ", f"{self.conn_baud}")
-
-
-
+        self.conn_table = self.build_connection_panel()
         self.active_menu = self.dc_menu_items
-
+        chip_image = self.chip.chip_image if self.connected_state == True else ""
         # there's probably a more elegent way of doing this but it works
-        self.main_display = InfoDisplays(
+        self.info_panels = InfoSection(
             menu=self.build_menu(),
             info=Panel(
                 Group(
-                    Panel(
-                        self.default_conn_info,
-                        title="[bold yellow]Connection[/bold yellow]",
-                        **config.panel_format,
-                    ),
-                    self.default_device_info,
+                    self.build_connection_panel(),
+                    self.build_device_panel(),
+                    Panel(chip_image),
                     fit=True,
                 ),
                 **config.panel_format,
             ),
-            opts="",
+            opts=self.build_opts_panel(),
         )
 
     def __init__(self, driver_class=None, css_path=None, watch_css: bool = False):
-
         self.build_items()
         self.msg_queue = Queue(10)
+        # set the app states
+        self.state = STATE_IDLE_DISCONNECTED
+        self.connected_state = False
+        # initialise parent class
         super().__init__(driver_class, css_path, watch_css)
 
     ## Widgets & tables updates
@@ -396,50 +418,11 @@ class StmApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
         yield self.banner
-        yield self.main_display
+        yield self.info_panels
         yield self.msg_log
-        yield self.input
+        yield self.input_box
 
-    def dev_content_from_state(self):
-        if self.state == STATE_READ_MEM or self.state == STATE_WRITE_MEM:
-            return Group(
-                self.build_readwrite_table(),
-                self.build_device_table(),
-                self.chip.chip_image,
-            )
-        elif self.state == STATE_IDLE_DISCONNECTED:
-            return Group(self.build_conn_table(), self.default_device_info, "")
-        else:
-            return Group(
-                self.build_conn_table(), self.build_device_table(), self.chip.chip_image
-            )
-
-    def update_tables(self):
-        dev_info = self.get_widget_by_id("info")
-        menu = self.get_widget_by_id("menu")
-        opts = self.get_widget_by_id("opts")
-
-        dev_content = self.dev_content_from_state()
-        opts_table = "" if self.connected == False else self.build_opts_table()
-        opts_raw = "" if self.connected == False else self.build_opts_raw()
-
-        dev_info.update(
-            Panel(
-                dev_content,
-                **config.panel_format,
-            )
-        )
-
-        opts.update(
-            Panel(
-                Group(opts_table, opts_raw),
-                **config.panel_format,
-            )
-        )
-
-        menu.update(self.build_menu())
-
-    def build_menu(self):
+    def build_menu_section(self):
         menu = config.menu_template
 
         for opt in self.active_menu:
@@ -455,7 +438,57 @@ class StmApp(App):
             **config.panel_format,
         )
 
-    def build_opts_table(self) -> Table:
+    def build_device_section(self) -> Group:
+        """generate device section content from state
+
+        Returns:
+            Group: group of panels for the central device display
+        """
+        if self.state == STATE_READ_MEM or self.state == STATE_WRITE_MEM:
+            return Group(
+                self.build_readwrite_panel(),
+                self.build_device_panel(),
+                self.chip.chip_image,
+            )
+        elif self.state == STATE_IDLE_DISCONNECTED:
+            return Group(self.build_connection_panel(), self.default_device_info, "")
+        else:
+            return Group(
+                self.build_connection_panel(),
+                self.build_device_panel(),
+                self.chip.chip_image,
+            )
+
+    def build_connection_panel(self) -> Panel:
+        """builds the connection state table wrapped in a panel
+
+        Returns:
+            Panel: the panel containing state table
+        """
+        conn_info = Table("", "", **config.clear_table_format)
+
+        conn_info.add_row(
+            "Connected    ",
+            binary_colour(self.connected_state, "connected_state", "disconnected"),
+        )
+
+        if self.connected_state == True:
+            conn_info.add_row("", "")
+            conn_info.add_row("Port", f"{self.conn_port}")
+            conn_info.add_row("Baud", f"{self.conn_baud}")
+
+        return Panel(
+            conn_info,
+            title="[bold yellow]Connection[/bold yellow]",
+            **config.panel_format,
+        )
+
+    def build_opts_panel(self) -> Panel:
+        """builds the option bytes table panel
+
+        Returns:
+            Panel: the option bytes table
+        """
         opts_table = Table(
             "Option Byte",
             "Value",
@@ -465,60 +498,62 @@ class StmApp(App):
             box=None,
         )
         opts_table.add_row("", "")
-        opts_table.add_row(
-            "Read Protect",
-            binary_colour(
-                self.stm_device.device.opt_bytes.readProtect,
-                true_str="enabled",
-                false_str="disabled",
-                false_fmt="blue",
-            ),
-        )
-        opts_table.add_row(
-            "Watchdog Type",
-            binary_colour(
-                self.stm_device.device.opt_bytes.watchdogType,
-                false_str="Hardware",
-                true_str="Software",
-                false_fmt="blue",
-            ),
-        )
-        opts_table.add_row(
-            "Rst on Standby",
-            binary_colour(
-                self.stm_device.device.opt_bytes.resetOnStandby,
-                true_str="enabled",
-                false_str="disabled",
-                false_fmt="blue",
-            ),
-        )
-        opts_table.add_row(
-            "Rst on Stop",
-            binary_colour(
-                self.stm_device.device.opt_bytes.resetOnStop,
-                true_str="enabled",
-                false_str="disabled",
-                false_fmt="blue",
-            ),
-        )
-        opts_table.add_row(
-            "Data Byte 0", f"{hex(self.stm_device.device.opt_bytes.dataByte0)}"
-        )
-        opts_table.add_row(
-            "Data Byte 1", f"{hex(self.stm_device.device.opt_bytes.dataByte1)}"
-        )
-        opts_table.add_row(
-            "Write Prot 0", str(self.stm_device.device.opt_bytes.writeProtect0)
-        )
-        opts_table.add_row(
-            "Write Prot 1", str(self.stm_device.device.opt_bytes.writeProtect1)
-        )
-        opts_table.add_row(
-            "Write Prot 2", str(self.stm_device.device.opt_bytes.writeProtect2)
-        )
-        opts_table.add_row(
-            "Write Prot 3", str(self.stm_device.device.opt_bytes.writeProtect3)
-        )
+
+        if self.connected_state == True:
+            opts_table.add_row(
+                "Read Protect",
+                binary_colour(
+                    self.stm_device.device.opt_bytes.readProtect,
+                    true_str="enabled",
+                    false_str="disabled",
+                    false_fmt="blue",
+                ),
+            )
+            opts_table.add_row(
+                "Watchdog Type",
+                binary_colour(
+                    self.stm_device.device.opt_bytes.watchdogType,
+                    false_str="Hardware",
+                    true_str="Software",
+                    false_fmt="blue",
+                ),
+            )
+            opts_table.add_row(
+                "Rst on Standby",
+                binary_colour(
+                    self.stm_device.device.opt_bytes.resetOnStandby,
+                    true_str="enabled",
+                    false_str="disabled",
+                    false_fmt="blue",
+                ),
+            )
+            opts_table.add_row(
+                "Rst on Stop",
+                binary_colour(
+                    self.stm_device.device.opt_bytes.resetOnStop,
+                    true_str="enabled",
+                    false_str="disabled",
+                    false_fmt="blue",
+                ),
+            )
+            opts_table.add_row(
+                "Data Byte 0", f"{hex(self.stm_device.device.opt_bytes.dataByte0)}"
+            )
+            opts_table.add_row(
+                "Data Byte 1", f"{hex(self.stm_device.device.opt_bytes.dataByte1)}"
+            )
+            opts_table.add_row(
+                "Write Prot 0", str(self.stm_device.device.opt_bytes.writeProtect0)
+            )
+            opts_table.add_row(
+                "Write Prot 1", str(self.stm_device.device.opt_bytes.writeProtect1)
+            )
+            opts_table.add_row(
+                "Write Prot 2", str(self.stm_device.device.opt_bytes.writeProtect2)
+            )
+            opts_table.add_row(
+                "Write Prot 3", str(self.stm_device.device.opt_bytes.writeProtect3)
+            )
 
         return Panel(
             opts_table,
@@ -526,28 +561,27 @@ class StmApp(App):
             **config.panel_format,
         )
 
-    def build_opts_raw(self):
-        raw_bytes_string = MARKUP(self.stm_device.device.opt_bytes.rawBytesToString())
-        return Panel(raw_bytes_string, **config.panel_format)
-
-    def build_device_table(self) -> Table:
+    def build_device_panel(self) -> Table:
         device_table = Table("", "", **config.clear_table_format)
         device_table.add_row("", "")  # spacer
-        device_table.add_row("Device Type   ", f"{self.stm_device.device.name}")
-        device_table.add_row("Device ID     ", f"{hex(self.stm_device.getDeviceId())}")
-        device_table.add_row(
-            "Bootloader v  ", f"{str(self.stm_device.getDeviceBootloaderVersion())}"
-        )
-        device_table.add_row(
-            "Flash Size    ", f"{hex(self.stm_device.device.flash_memory.size)}"
-        )
-        device_table.add_row(
-            "Flash Pages   ",
-            f"{self.stm_device.device.flash_page_num} Pages of {self.stm_device.device.flash_page_size}b",
-        )
-        device_table.add_row(
-            "RAM Size      ", f"{hex(self.stm_device.device.ram.size)}"
-        )
+        if self.connected_state == True:
+            device_table.add_row("Device Type   ", f"{self.stm_device.device.name}")
+            device_table.add_row(
+                "Device ID     ", f"{hex(self.stm_device.getDeviceId())}"
+            )
+            device_table.add_row(
+                "Bootloader v  ", f"{str(self.stm_device.getDeviceBootloaderVersion())}"
+            )
+            device_table.add_row(
+                "Flash Size    ", f"{hex(self.stm_device.device.flash_memory.size)}"
+            )
+            device_table.add_row(
+                "Flash Pages   ",
+                f"{self.stm_device.device.flash_page_num} Pages of {self.stm_device.device.flash_page_size}b",
+            )
+            device_table.add_row(
+                "RAM Size      ", f"{hex(self.stm_device.device.ram.size)}"
+            )
         self.dev_table = Panel(
             device_table,
             title="[bold yellow]Device[/bold yellow]",
@@ -556,23 +590,7 @@ class StmApp(App):
 
         return self.dev_table
 
-    def build_conn_table(self) -> Table:
-        conn_table = Table("", "", **config.clear_table_format)
-        conn_table.add_row("", "")  # spacer
-        conn_table.add_row(
-            "Connected    ",
-            binary_colour(self.connected, "connected", "disconnected"),
-        )
-        conn_table.add_row("Port         ", self.conn_port)
-        conn_table.add_row("Baud         ", str(self.conn_baud))
-        self.conn_table = Panel(
-            conn_table,
-            title="[bold yellow]Connection[/bold yellow]",
-            **config.panel_format,
-        )
-        return self.conn_table
-
-    def build_readwrite_table(self) -> Table:
+    def build_readwrite_panel(self) -> Table:
         rw_table = Table("", "", **config.clear_table_format)
         rw_table.add_row("", "")
         rw_table.add_row(
@@ -594,11 +612,44 @@ class StmApp(App):
             rw_table, title="[bold yellow]IO[/bold yellow]", **config.panel_format
         )
 
+    def build_opts_raw(self):
+        raw_bytes_string = MARKUP(self.stm_device.device.opt_bytes.rawBytesToString())
+        return Panel(raw_bytes_string, **config.panel_format)
+
+    def update_tables(self):
+        dev_info = self.get_widget_by_id("info")
+        menu = self.get_widget_by_id("menu")
+        opts = self.get_widget_by_id("opts")
+
+        dev_content = self.build_device_section()
+        opts_table = "" if self.connected_state == False else self.build_opts_panel()
+        opts_raw = "" if self.connected_state == False else self.build_opts_raw()
+
+        dev_info.update(
+            Panel(
+                dev_content,
+                **config.panel_format,
+            )
+        )
+
+        opts.update(
+            Panel(
+                Group(opts_table, opts_raw),
+                **config.panel_format,
+            )
+        )
+
+        menu.update(self.build_menu())
+
     def idle_state(self):
-        return STATE_IDLE_DISCONNECTED if not self.connected else STATE_IDLE_CONNECTED
+        return (
+            STATE_IDLE_DISCONNECTED
+            if not self.connected_state
+            else STATE_IDLE_CONNECTED
+        )
 
     def handle_connected(self):
-        self.msg_log.write(SuccessMessage("Successfully connected!"))
+        self.msg_log.write(SuccessMessage("Successfully connected_state!"))
         self.msg_log.write(
             SuccessMessage(f"Found device: {self.stm_device.device.name}")
         )
@@ -642,8 +693,8 @@ class StmApp(App):
             dev_info.update(
                 Panel(
                     Group(
-                        self.build_conn_table(),
-                        self.build_device_table(),
+                        self.build_connection_panel(),
+                        self.build_device_panel(),
                         next(self.chip, colour=colour),
                     ),
                     **config.panel_format,
@@ -653,8 +704,8 @@ class StmApp(App):
         dev_info.update(
             Panel(
                 Group(
-                    self.build_conn_table(),
-                    self.build_device_table(),
+                    self.build_connection_panel(),
+                    self.build_device_panel(),
                     self.chip.chip_image,
                 ),
                 **config.panel_format,
@@ -671,7 +722,7 @@ class StmApp(App):
         prev_state = self.state
         self.state = STATE_AWAITING_INPUT
         self.msg_log.write(InfoMessage(f"{msg}"))
-        self.set_focus(self.input)
+        self.set_focus(self.input_box)
 
         msg = await self.msg_queue.get()
         try:
@@ -719,8 +770,8 @@ class StmApp(App):
                 )
             )
         else:
-            self.connected = self.device_connect()
-            if self.connected == True:
+            self.connected_state = self.device_connect()
+            if self.connected_state == True:
                 self.handle_connected()
 
     async def handle_readflash_keypress(self):
@@ -822,7 +873,9 @@ class StmApp(App):
 
     async def handle_cancel_keypress(self):
         self.state = (
-            STATE_IDLE_CONNECTED if self.connected == True else STATE_IDLE_DISCONNECTED
+            STATE_IDLE_CONNECTED
+            if self.connected_state == True
+            else STATE_IDLE_DISCONNECTED
         )
         self.update_tables()
 
@@ -834,7 +887,6 @@ class StmApp(App):
         sys.exit()
 
     async def handle_key(self, key: str):
-
         # debug keybindings
         if key == "@":
             self.action_screenshot()
