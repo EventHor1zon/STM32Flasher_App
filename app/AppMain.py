@@ -865,13 +865,17 @@ class StmApp(App):
         opts.update(opts_content)
         self.info_panels = MainSections()
 
-    def update_all_sections(self):
+    def update_all_sections(self) -> None:
         """update all three main display sections"""
         self.update_menu_section()
         self.update_info_section()
         self.update_option_section()
 
-    def handle_connected(self):
+    def handle_connected(self) -> None:
+        """handle the initial connection to the device
+        This function sets the chip image object
+        TODO: Clean up, assign all objects here?
+        """
         self.msg_log.write(SuccessMessage("Successfully connected_state!"))
         self.msg_log.write(
             SuccessMessage(f"Found device: {self.stm_device.device.name}")
@@ -890,6 +894,11 @@ class StmApp(App):
         self.update_state(STATE_IDLE_CONNECTED)
 
     def connect_to_device(self) -> bool:
+        """Attempt to connect to the device using the supplied parameters
+
+        Returns:
+            bool: success
+        """
         success = False
         try:
             self.msg_log.write(
@@ -944,7 +953,7 @@ class StmApp(App):
             attribute (str): _description_
             ex_type (_type_, optional): _description_. Defaults to str.
         """
-        prev_state = self.state
+
         self.change_state(STATE_AWAITING_INPUT)
         self.msg_log.write(InfoMessage(f"{msg}"))
         self.set_focus(self.input_box)
@@ -957,7 +966,7 @@ class StmApp(App):
         except ValueError:
             self.msg_log.write(ErrorMessage(f"Invalid type: expected {ex_type}"))
         finally:
-            self.state = prev_state
+            self.restore_previous_state()
 
     ## KEYPRESS HANDLERS ##
 
@@ -1101,7 +1110,11 @@ class StmApp(App):
     async def handle_option_bytes(self):
         pass
 
-    def handle_exit_keypress(self):
+    def handle_exit_keypress(self) -> None:
+        """TODO: make sure there are no long-running tasks, and cancel them if
+        they are running
+        TODO: Prompt the user if there are long-running tasks
+        """
         print("Bye!")
         sys.exit()
 
