@@ -4,6 +4,9 @@ from rich.style import StyleType, Style
 
 CSS_PATH = "./css/stmapp_css.css"
 
+ENABLE_BLINK_EFFECT = True
+DEFAULT_CONNECTION_BAUD = 9600
+
 KEY_EXIT = "x"  # exit the application
 KEY_VERS = "v"  # print the app version
 KEY_PORT = "p"  # set the serial port
