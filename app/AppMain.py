@@ -389,11 +389,12 @@ class StmApp(App):
         )
 
     def __init__(self, driver_class=None, css_path=None, watch_css: bool = False):
-        self.build_items()
         self.msg_queue = Queue(10)
         # set the app states
         self.state = STATE_IDLE_DISCONNECTED
         self.connected_state = False
+        # build all central displays
+        self.build_items()
         # initialise parent class
         super().__init__(driver_class, css_path, watch_css)
 
@@ -405,6 +406,8 @@ class StmApp(App):
         yield self.info_panels
         yield self.msg_log
         yield self.input_box
+
+    ## build sections
 
     def build_menu_section(self):
         menu = config.menu_template
@@ -433,6 +436,16 @@ class StmApp(App):
             self.build_device_panel(),
             self.build_image_panel(),
         )
+
+    ## build panels
+    #   Info section
+    #   - image panel: chip image
+    #   - user panel: user-supplied data relection
+    #   - device panel: device information
+    #   Options section
+    #   - opts table panel
+    #   - opts bytes panel
+    #
 
     def build_image_panel(self) -> Panel:
         content = ""
@@ -620,6 +633,7 @@ class StmApp(App):
         raw_bytes_string = MARKUP(self.stm_device.device.opt_bytes.rawBytesToString())
         return Panel(raw_bytes_string, **config.panel_format)
 
+    ## TODO: Split this out
     def update_tables(self):
         info_widget = self.get_widget_by_id("info")
         menu = self.get_widget_by_id("menu")
