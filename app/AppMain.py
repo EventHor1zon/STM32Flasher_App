@@ -549,6 +549,7 @@ class StmApp(App):
             self.prev_state = self.state
             self.state = new_state
             # don't update any sections if we're just awaiting input
+            # the state transition back after will update info
             if self.state != STATE_AWAITING_INPUT:
                 self.update_all_sections()
 
@@ -917,30 +918,35 @@ class StmApp(App):
     ## OPERATIONS #
 
     async def long_running_task(self, function, *func_args, colour: str = "red"):
+        """Wrapper for performing a long-running task whilst cycling the chip image
+        animation. This is very very fun.
+        TODO: Don't use the 'run in executor' function, asyncio.run might work
+        Args:
+            function (func): long-running task
+            colour (str, optional): chip animation colour. Defaults to "red".
+
+        Returns:
+            Any: task result
+        """
         info_widget = self.get_widget_by_id("info")
         task = asyncio.get_running_loop().run_in_executor(None, function, *func_args)
+        user_panel = self.build_user_panel()
+        device_panel = self.build_device_panel()
+
         while not task.done():
             info_widget.update(
                 Panel(
                     Group(
-                        self.build_user_panel(),
-                        self.build_device_panel(),
+                        user_panel,
+                        device_panel,
                         next(self.chip, colour=colour),
                     ),
                     **config.panel_format,
                 )
             )
             await asyncio.sleep(0.1)
-        info_widget.update(
-            Panel(
-                Group(
-                    self.build_user_panel(),
-                    self.build_device_panel(),
-                    self.build_image_panel(),
-                ),
-                **config.panel_format,
-            )
-        )
+
+        self.update_info_section()
         return task.result()
 
     async def input_to_attribute(self, msg: str, attribute: str, ex_type=str) -> None:
@@ -1104,10 +1110,11 @@ class StmApp(App):
         )
 
     async def handle_cancel_keypress(self):
+        """TODO: Cancel the current task here"""
         self.change_state(self.idle_state())
-        self.update_menu_section()
 
     async def handle_option_bytes(self):
+        """TODO: This :)"""
         pass
 
     def handle_exit_keypress(self) -> None:
@@ -1137,6 +1144,7 @@ class StmApp(App):
         await self.handle_key(event.char)
 
     async def read_from_flash(self):
+        """TODO: rename function aligned with the others, task_NAME"""
         if self.filepath is not None and self.read_len > 0:
             success = True
             chunks = int(self.read_len / 256)
@@ -1182,6 +1190,11 @@ class StmApp(App):
         self.offset = 0
 
     async def on_input_submitted(self, message: Input.Submitted) -> None:
+        """handle input received from the input box
+
+        Args:
+            message (Input.Submitted): the user input
+        """
         if self.state != STATE_AWAITING_INPUT:
             # we are not expecting any inputs so ignore here
             pass
