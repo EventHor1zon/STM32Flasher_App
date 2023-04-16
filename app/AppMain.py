@@ -71,7 +71,137 @@ STATE_READ_MEM = 4
 STATE_WRITE_MEM = 5
 STATE_UPLOAD_APP = 6
 STATE_OPTBYTE_CONFIG = 7
+STATE_INVALID = 8
 STATE_ANY = 255
+
+
+# build the keypress menu items
+menu_items = [
+    {
+        "key": config.KEY_PORT,
+        "description": "Set Port",
+        "state": STATE_IDLE_DISCONNECTED,
+    },
+    {
+        "key": config.KEY_BAUD,
+        "description": "Set Baud",
+        "state": STATE_IDLE_DISCONNECTED,
+    },
+    {
+        "key": config.KEY_CONN,
+        "description": "Connect",
+        "state": STATE_IDLE_DISCONNECTED,
+        "action": self.handle_connect_keypress,
+    },
+    {
+        "key": config.KEY_EXIT,
+        "description": "Exit",
+        "state": STATE_ANY,
+        "action": self.handle_exit_keypress,
+    },
+    {
+        "key": config.KEY_CNCL,
+        "description": "Cancel",
+        "state": STATE_ANY,
+        "action": self.handle_cancel_keypress,
+    },
+    {
+        "key": config.KEY_VERS,
+        "description": "Print Version",
+        "state": STATE_ANY,
+        "action": self.handle_vers_keypress,
+    },
+    {
+        "key": config.KEY_FILE,
+        "description": "set file path",
+        "action": self.handle_filepath_keypress,
+        "state": STATE_READ_MEM,
+    },
+    {
+        "key": "o",
+        "description": "Configure offset",
+        "action": self.handle_offset_keypress,
+        "state": STATE_READ_MEM,
+    },
+    {
+        "key": "l",
+        "description": "Read length",
+        "action": self.handle_length_keypress,
+        "state": STATE_READ_MEM,
+    },
+    {
+        "key": config.KEY_RDFS,
+        "description": "Read memory",
+        "action": None,
+        "state": STATE_READ_MEM,
+    },
+    {
+        "key": config.KEY_FILE,
+        "description": "set file path",
+        "action": None,
+        "state": STATE_UPLOAD_APP,
+    },
+    {
+        "key": "o",
+        "description": "Configure offset",
+        "action": None,
+        "state": STATE_UPLOAD_APP,
+    },
+    {
+        "key": "w",
+        "description": "Write file contents to flash",
+        "action": None,
+        "state": STATE_UPLOAD_APP,
+    },
+    {
+        "key": config.KEY_RDRM,
+        "description": "Read RAM to file",
+        "state": STATE_IDLE_CONNECTED,
+        "action": None,
+    },
+    {
+        "key": config.KEY_WRRM,
+        "description": "Write file data to ram",
+        "state": STATE_IDLE_CONNECTED,
+        "action": None,
+    },
+    {
+        "key": config.KEY_UPLD,
+        "description": "Upload application to flash",
+        "state": STATE_IDLE_CONNECTED,
+        "action": None,
+    },
+    {
+        "key": config.KEY_ERFS,
+        "description": "Erase all flash",
+        "state": STATE_IDLE_CONNECTED,
+        "action": self.handle_erase_keypress,
+    },
+    {
+        "key": config.KEY_RDFS,
+        "description": "Read flash memory",
+        "state": STATE_IDLE_CONNECTED,
+        "action": self.handle_readflash_keypress,
+    },
+    {
+        "key": config.KEY_DCON,
+        "description": "Disconnect from device",
+        "state": STATE_IDLE_CONNECTED,
+        "action": None,
+    },
+    {
+        "key": config.KEY_RDPG,
+        "description": "Read flash pages",
+        "state": STATE_IDLE_CONNECTED,
+        "action": self.handle_readpages_keypress,
+    },
+    {
+        "key": config.KEY_OPTB,
+        "description": "Configure Option Bytes",
+        "action": self.handle_option_bytes,
+        "state": STATE_IDLE_CONNECTED,
+    },
+]
 
 
 # Text Formatting functions
@@ -311,8 +441,9 @@ class StmApp(App):
     Application structure as follows:
 
     ```
-        -------------------------------------
+        --------------------------------------
         [                Banner              ]
+        --------------------------------------
         [   menu  ][  user info  ][  opts    ]
         [   sect  ][  dev info   ][  sect    ]
         [   quit  ][  chip img   ][          ]
@@ -322,6 +453,7 @@ class StmApp(App):
         --------------------------------------
         [           Input                    ]
         --------------------------------------
+
     ```
     Nomenclature - for sanity's sake, refer to
                    each of the 3 display sections
@@ -342,9 +474,9 @@ class StmApp(App):
     # Try to use config variables for easier styling
     CSS_PATH = config.CSS_PATH
 
-    # keep track of expected input so we know
-    # when to pay attention to the input box
-    state = STATE_IDLE_DISCONNECTED
+    # application state & previous state
+    state = STATE_INVALID
+    prev_state = STATE_INVALID
 
     # Device model
     stm_device = STMInterface()
@@ -371,36 +503,78 @@ class StmApp(App):
     chip_image = ""
     chip = None
 
+    state_menu_items = []
+    all_menu_items = [item for item in menu_items if item["state"] == STATE_ANY]
+
     banner = Static(APPLICATION_BANNER, expand=True, id="banner")
     msg_log = StringPutter(max_lines=8, name="msg_log", id="msg_log")
     input_box = StringGetter(placeholder=">>>")
 
-    # initialise page info
-    # TODO: remove me
-    def build_items(self):
-        self.conn_table = self.build_user_panel()
-        self.active_menu = self.dc_menu_items
-        chip_image = self.chip.chip_image if self.connected_state == True else ""
-        # there's probably a more elegent way of doing this but it works
+    def __init__(self, driver_class=None, css_path=None, watch_css: bool = False):
+        # Declare a custom message queue
+        self.msg_queue = Queue(10)
+
+        # set the start app states
+        self.change_state(STATE_IDLE_DISCONNECTED)
+        self.connected_state = False
+
+        # initialise the panel contents
         self.info_panels = MainSections(
-            menu=self.build_menu_section(),
-            info=self.build_info_section(),
-            opts=self.build_opts_panel(),
+            menu=self.menu,
+            info=self.info,
+            opts=self.opts,
         )
 
-    def __init__(self, driver_class=None, css_path=None, watch_css: bool = False):
-        self.msg_queue = Queue(10)
-        # set the app states
-        self.state = STATE_IDLE_DISCONNECTED
-        self.connected_state = False
-        # build all central displays
-        self.build_items()
         # initialise parent class
         super().__init__(driver_class, css_path, watch_css)
+
+    ## State mechanics
+
+    def idle_state(self) -> int:
+        return (
+            STATE_IDLE_DISCONNECTED
+            if not self.connected_state
+            else STATE_IDLE_CONNECTED
+        )
+
+    def change_state(self, new_state: int) -> None:
+        """change state and update contents
+
+        Args:
+            new_state (int): state to transition to
+        """
+        if self.state == new_state or new_state >= STATE_INVALID:
+            return
+        else:
+            self.prev_state = self.state
+            self.state = new_state
+            # don't update any sections if we're just awaiting input
+            if self.state != STATE_AWAITING_INPUT:
+                self.update_all_sections()
+
+    def restore_previous_state(self) -> None:
+        """restore the previous state"""
+        self.change_state(self.prev_state)
+
+    def menu_items_from_state(self) -> list:
+        """returns a list of menu items filtered by current state
+
+        Returns:
+            list: list of menu items
+        """
+        return [item for item in menu_items if item["state"] == self.state]
 
     ## Widgets & tables updates
 
     def compose(self) -> ComposeResult:
+        """overwrite the default application compose method
+
+        Returns:
+            ComposeResult: the composed windows
+
+        Yields:
+            Iterator[ComposeResult]: none
+        """
         yield Header()
         yield self.banner
         yield self.info_panels
@@ -409,33 +583,63 @@ class StmApp(App):
 
     ## build sections
 
-    def build_menu_section(self):
+    def build_menu_section(self) -> Panel:
+        """Build the menu section panel from the active menu
+
+        Returns:
+            Panel: menu section panel
+        """
         menu = config.menu_template
 
-        for opt in self.active_menu:
+        self.state_menu_items = self.menu_items_from_state()
+
+        for opt in self.state_menu_items:
             menu += f"[bold]{opt['key']}[/bold]: {opt['description']}\n"
 
         menu += "\n"
-        for opt in self.any_menu_items:
+        for opt in self.all_menu_items:
             menu += f"[bold]{opt['key']}[/bold]: {opt['description']}\n"
 
-        return Panel(
+        self.menu = Panel(
             Text.from_markup(menu),
             title="[bold red]Menu[/bold red]",
             **config.panel_format,
         )
 
-    def build_info_section(self) -> Group:
+        return self.menu
+
+    def build_info_section(self) -> Panel:
         """generate info section content
 
         Returns:
             Group: group of panels for the central info section
         """
-        return Group(
-            self.build_user_panel(),
-            self.build_device_panel(),
-            self.build_image_panel(),
+        self.info = Panel(
+            Group(
+                self.build_user_panel(),
+                self.build_device_panel(),
+                self.build_image_panel(),
+            ),
+            **config.panel_format,
         )
+
+        return self.info
+
+    def build_opts_section(self) -> Panel:
+        """build the option bytes section panel
+
+        Returns:
+            Panel: option bytes panels grouped
+        """
+        self.opts = Panel(
+            Group(
+                self.build_opts_panel(),
+                self.build_opts_raw_panel(),
+            ),
+            **config.panel_format,
+        )
+
+        return self.opts
 
     ## build panels
     #   Info section
@@ -448,6 +652,12 @@ class StmApp(App):
     #
 
     def build_image_panel(self) -> Panel:
+        """build the chip image panel, if not connected then
+        this returns an empty panel.
+
+        Returns:
+            Panel: The chip image content in a panel
+        """
         content = ""
 
         if self.connected_state == True:
@@ -629,42 +839,37 @@ class StmApp(App):
             **config.panel_format,
         )
 
-    def build_opts_raw(self):
+    def build_opts_raw_panel(self) -> Panel:
         raw_bytes_string = MARKUP(self.stm_device.device.opt_bytes.rawBytesToString())
         return Panel(raw_bytes_string, **config.panel_format)
 
-    ## TODO: Split this out
-    def update_tables(self):
-        info_widget = self.get_widget_by_id("info")
+    ## UI Updates: update the three central sections
+    #   or all at once!
+
+    def update_menu_section(self) -> None:
+        """update the menu section content"""
         menu = self.get_widget_by_id("menu")
+        menu_content = self.build_menu_section()
+        menu.update(menu_content)
+
+    def update_info_section(self) -> None:
+        """update the info section content"""
+        info = self.get_widget_by_id("info")
+        info_content = self.build_info_section()
+        info.update(info_content)
+
+    def update_option_section(self) -> None:
+        """update the option section content"""
         opts = self.get_widget_by_id("opts")
+        opts_content = self.build_opts_section()
+        opts.update(opts_content)
+        self.info_panels = MainSections()
 
-        dev_content = self.build_info_section()
-        opts_table = "" if self.connected_state == False else self.build_opts_panel()
-        opts_raw = "" if self.connected_state == False else self.build_opts_raw()
-
-        info_widget.update(
-            Panel(
-                dev_content,
-                **config.panel_format,
-            )
-        )
-
-        opts.update(
-            Panel(
-                Group(opts_table, opts_raw),
-                **config.panel_format,
-            )
-        )
-
-        menu.update(self.build_menu())
-
-    def idle_state(self):
-        return (
-            STATE_IDLE_DISCONNECTED
-            if not self.connected_state
-            else STATE_IDLE_CONNECTED
-        )
+    def update_all_sections(self):
+        """update all three main display sections"""
+        self.update_menu_section()
+        self.update_info_section()
+        self.update_option_section()
 
     def handle_connected(self):
         self.msg_log.write(SuccessMessage("Successfully connected_state!"))
@@ -682,11 +887,9 @@ class StmApp(App):
             )
         )
         self.chip = ChipImage(self.stm_device.device.name)
-        self.active_menu = self.con_menu_items
-        self.state = STATE_IDLE_CONNECTED
-        self.update_tables()
+        self.update_state(STATE_IDLE_CONNECTED)
 
-    def device_connect(self) -> bool:
+    def connect_to_device(self) -> bool:
         success = False
         try:
             self.msg_log.write(
@@ -731,14 +934,18 @@ class StmApp(App):
         )
         return task.result()
 
-    async def input_to_attribute(self, msg: str, attribute: str, ex_type=str):
-        """!
-        @brief awaits user input and sets the variable
-        @param attribute - the attribute to set
-        @param ex_type - expected type (tries to convert)
+    async def input_to_attribute(self, msg: str, attribute: str, ex_type=str) -> None:
+        """take a user-supplied input and assign it to a class attribute
+
+        TODO: This is not smart, assign to a dict
+
+        Args:
+            msg (str): _description_
+            attribute (str): _description_
+            ex_type (_type_, optional): _description_. Defaults to str.
         """
         prev_state = self.state
-        self.state = STATE_AWAITING_INPUT
+        self.change_state(STATE_AWAITING_INPUT)
         self.msg_log.write(InfoMessage(f"{msg}"))
         self.set_focus(self.input_box)
 
@@ -759,17 +966,17 @@ class StmApp(App):
         self.msg_log.write(
             InfoMessage(f"{APPLICATION_NAME} Version {APPLICATION_VERSION}")
         )
-        self.state = self.idle_state()
+        self.change_state(self.idle_state())
 
     async def handle_port_keypress(self):
         """handle port input keypress"""
         await self.input_to_attribute("Enter connection port", "conn_port")
-        self.update_tables()
+        self.update_info_section()
 
     async def handle_baud_keypress(self):
         """handle baud input keypress"""
         await self.input_to_attribute("Enter connection baud", "conn_baud")
-        self.update_tables()
+        self.update_info_section()
 
     async def handle_connect_keypress(self):
         """handle the 'connect' keypress
@@ -788,7 +995,7 @@ class StmApp(App):
                 )
             )
         else:
-            self.connected_state = self.device_connect()
+            self.connected_state = self.connect_to_device()
             if self.connected_state == True:
                 self.handle_connected()
 
@@ -796,10 +1003,8 @@ class StmApp(App):
         """handle the 'read flash' keypress
         update menu to readwrite and update tables
         """
-        self.state = STATE_READ_MEM
-        self.active_menu = self.read_menu
+        self.change_state(STATE_READ_MEM)
         self.address = self.stm_device.device.flash_memory.start
-        self.update_tables()
 
     async def handle_erase_keypress(self):
         """handle the erase keypress
@@ -846,7 +1051,7 @@ class StmApp(App):
 
     async def handle_length_keypress(self):
         await self.input_to_attribute("Enter length", "length", int)
-        self.update_tables()
+        self.update_info_section()
 
     async def handle_filepath_keypress(self):
         await self.input_to_attribute("Enter file path", "filepath")
@@ -855,11 +1060,11 @@ class StmApp(App):
                 ErrorMessage(f"Error: invalid file path {self.filepath}")
             )
             self.filepath = ""
-        self.update_tables()
+        self.update_info_section()
 
     async def handle_offset_keypress(self):
         await self.input_to_attribute("Enter offset from start address", "offset", int)
-        self.update_tables()
+        self.update_info_section()
 
     async def handle_upload_keypress(self):
         """run sanity checks then upload application"""
@@ -873,13 +1078,13 @@ class StmApp(App):
                 )
             )
             self.length = 0
-            self.update_tables()
+            self.update_info_section()
             return
 
         if not self.stm_device.device.flash_memory.is_valid(self.address + self.offset):
             self.msg_log.write(FailMessage(f"Error - invalid address with offset"))
             self.offset = 0
-            self.update_tables()
+            self.update_info_section()
             return
 
         status = await self.long_running_task(
@@ -890,12 +1095,8 @@ class StmApp(App):
         )
 
     async def handle_cancel_keypress(self):
-        self.state = (
-            STATE_IDLE_CONNECTED
-            if self.connected_state == True
-            else STATE_IDLE_DISCONNECTED
-        )
-        self.update_tables()
+        self.change_state(self.idle_state())
+        self.update_menu_section()
 
     async def handle_option_bytes(self):
         pass
@@ -914,7 +1115,7 @@ class StmApp(App):
                 await self.long_running_task(sleep, 5)
 
         # menu commands
-        for command in self.active_menu:
+        for command in self.state_menu_items:
             if key == command["key"] and command["action"] is not None:
                 asyncio.create_task(command["action"]())
 

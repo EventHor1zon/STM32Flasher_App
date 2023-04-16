@@ -53,7 +53,7 @@ clear_table_format = {
 
 
 # build the keypress menu items
-dc_menu_items = [
+menu_items = [
     {
         "key": KEY_PORT,
         "description": "Set Port",
@@ -70,9 +70,6 @@ dc_menu_items = [
         "state": STATE_IDLE_DISCONNECTED,
         "action": self.handle_connect_keypress,
     },
-]
-
-any_menu_items = [
     {
         "key": KEY_EXIT,
         "description": "Exit",
@@ -91,9 +88,6 @@ any_menu_items = [
         "state": STATE_ANY,
         "action": self.handle_vers_keypress,
     },
-]
-
-read_menu = [
     {
         "key": KEY_FILE,
         "description": "set file path",
@@ -118,9 +112,6 @@ read_menu = [
         "action": None,
         "state": STATE_READ_MEM,
     },
-]
-
-upload_menu_items = [
     {
         "key": KEY_FILE,
         "description": "set file path",
@@ -139,9 +130,6 @@ upload_menu_items = [
         "action": None,
         "state": STATE_UPLOAD_APP,
     },
-]
-
-self.con_menu_items = [
     {
         "key": KEY_RDRM,
         "description": "Read RAM to file",
