@@ -210,10 +210,6 @@ menu_items = [
 ]
 
 
-# Text Formatting functions
-# TODO: Move these to their own file
-
-
 # Application Sections
 # TODO: Move these to their own file
 # TODO: Make attributes configurable
