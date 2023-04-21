@@ -16,6 +16,8 @@
 import sys
 import os
 
+## TODO: remember to make serialflash a package and import
+# properly here. Fix these paths.
 from ..SerialFlasher.StmDevice import STMInterface
 from ..SerialFlasher.constants import STM_BOOTLOADER_MAX_BAUD, STM_BOOTLOADER_MIN_BAUD
 
@@ -24,8 +26,8 @@ from asyncio.queues import Queue, QueueEmpty, QueueFull
 from time import sleep
 
 from rich.panel import Panel
-from rich.table import Table, Column, Row
-from rich.style import StyleType, Style
+from rich.table import Table
+from rich.style import Style
 from rich.box import HEAVY, HEAVY_EDGE, SQUARE
 from rich.console import RenderableType, Group
 from rich.text import Text
@@ -33,9 +35,6 @@ from rich import print as rprint
 
 from textual.app import App, ComposeResult
 from textual.events import Event, Key, Focus, Blur
-from textual.message import Message
-from textual.reactive import reactive
-from textual.containers import Container
 from textual.widgets import (
     Header,
     Static,
@@ -463,7 +462,8 @@ class StmApp(App):
                  - For menu section, only one panel
                 (menu items) is required
                  - For Info section (middle), 3 panels are
-                reuired: Connection panel/rw panel, device panel and image panel
+                reuired: Connection panel/rw panel(now known as 'user' panel),
+                 device panel and image panel
                 - For Opts section, 2 panels are required:
                 the option table and the option bytes
 
@@ -514,9 +514,13 @@ class StmApp(App):
         # Declare a custom message queue
         self.msg_queue = Queue(10)
 
-        # set the start app states
-        self.change_state(STATE_IDLE_DISCONNECTED)
+        # set the start app states - update here might break
+        self.state = STATE_IDLE_DISCONNECTED
         self.connected_state = False
+
+        self.build_menu_section()
+        self.build_opts_section()
+        self.build_info_section()
 
         # initialise the panel contents
         self.info_panels = MainSections(
@@ -531,6 +535,11 @@ class StmApp(App):
     ## State mechanics
 
     def idle_state(self) -> int:
+        """get the specific idle state from connection state
+
+        Returns:
+            int: idle state
+        """
         return (
             STATE_IDLE_DISCONNECTED
             if not self.connected_state
