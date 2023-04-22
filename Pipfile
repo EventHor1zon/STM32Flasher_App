@@ -6,17 +6,16 @@ verify_ssl = true
 [dev-packages]
 pylint = "*"
 black = "*"
+sphinx = "*"
 
 [packages]
 pyserial = "*"
-crc = "*"
-asciimatics = "*"
 rich = "*"
 textual = "*"
-sphinx = "*"
+stm32-serialtools = {path = "./packages/stm32_serialtools-0.1.0-py3-none-any.whl"}
 
 [requires]
-python_version = "3.7"
+python_version = "3.8"
 
 [pipenv]
 allow_prereleases = true

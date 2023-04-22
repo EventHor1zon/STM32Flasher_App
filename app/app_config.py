@@ -1,6 +1,6 @@
 from rich.box import HEAVY, HEAVY_EDGE, SQUARE
 from rich.style import StyleType, Style
-
+from .states import *
 
 CSS_PATH = "./css/stmapp_css.css"
 

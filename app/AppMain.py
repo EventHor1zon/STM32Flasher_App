@@ -18,8 +18,8 @@ import os
 
 ## TODO: remember to make serialflash a package and import
 # properly here. Fix these paths.
-from ..SerialFlasher.StmDevice import STMInterface
-from ..SerialFlasher.constants import STM_BOOTLOADER_MAX_BAUD, STM_BOOTLOADER_MIN_BAUD
+from stm_tools.serialflasher.stmdevice import STMInterface
+from stm_tools.serialflasher.constants import STM_BOOTLOADER_MAX_BAUD, STM_BOOTLOADER_MIN_BAUD
 
 import asyncio
 from asyncio.queues import Queue, QueueEmpty, QueueFull
@@ -51,6 +51,7 @@ from .textformat import (
     MARKUP,
     binary_colour,
 )
+from .states import *
 
 DEBUG_MODE = False
 
@@ -67,18 +68,7 @@ APPLICATION_BANNER = """
 """
 
 
-# Application States
-# TODO: Make this an enum?
-STATE_IDLE_DISCONNECTED = 0
-STATE_IDLE_CONNECTED = 1
-STATE_AWAITING_INPUT = 2
-STATE_ERASE_MEM = 3
-STATE_READ_MEM = 4
-STATE_WRITE_MEM = 5
-STATE_UPLOAD_APP = 6
-STATE_OPTBYTE_CONFIG = 7
-STATE_INVALID = 8
-STATE_ANY = 255
+
 
 
 # build the keypress menu items
