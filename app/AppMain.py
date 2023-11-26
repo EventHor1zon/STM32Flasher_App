@@ -279,6 +279,11 @@ class OptBytesRaw(Static):
         )
         self.styles.background = "black"
 
+    def update_bytes(self, data):
+        ## TODO: This
+        if len(data) != 16:
+            return
+        
 
 class StringGetter(Input):
     def __init__(
@@ -437,18 +442,18 @@ class StmApp(App):
     connected_state = False
 
     # user supplied details
-    # TODO: Put into a dictionary
-    conn_port = ""
-    conn_baud = 9600
-    address = None
-    length = 0
-    offset = 0
-    filepath = None
+    user_input = {
+        "conn_port": "",
+        "conn_baud": 9600,
+        "address": 0,
+        "length": 0,
+        "offset": 0,
+        "filepath": "",
+    }
 
     # Default tables & widget definitions
     conn_table = None
     dev_table = None
-    chip_image = ""
     chip = None
 
     state_menu_items = []
@@ -648,14 +653,14 @@ class StmApp(App):
                     false_fmt="blue",
                 ),
             )
-            content.add_row("Address       ", f"{hex(self.address)}")
+            content.add_row("Address       ", f"{hex(self.user_input['address'])}")
             content.add_row("Length        ", f"{self.read_len}")
-            content.add_row("Offset        ", f"{self.offset}")
-            content.add_row("File path     ", f"{self.filepath}")
+            content.add_row("Offset        ", f"{self.user_input['offset']}")
+            content.add_row("File path     ", f"{self.user_input['filepath']}")
 
         elif self.state == STATE_ERASE_MEM:
             content.add_row("Operation     ", "Erase Flash")
-            content.add_row("Address       ", f"{hex(self.address)}")
+            content.add_row("Address       ", f"{hex(self.user_input['address'])}")
             content.add_row("Length        ", f"{self.erase_len}")
         else:
             title = "Connection"
@@ -664,8 +669,8 @@ class StmApp(App):
                 binary_colour(self.connected_state, "Connected", "Disconnected"),
             )
             content.add_row("", "")
-            content.add_row("Port", f"{self.conn_port}")
-            content.add_row("Baud", f"{self.conn_baud}")
+            content.add_row("Port", f"{self.user_input['conn_port']}")
+            content.add_row("Baud", f"{self.user_input['conn_baud']}")
 
         return Panel(
             content,
@@ -861,11 +866,11 @@ class StmApp(App):
         try:
             self.msg_log.write(
                 InfoMessage(
-                    f"Connecting to device on {self.conn_port} at {self.conn_baud}bps"
+                    f"Connecting to device on {self.user_input["conn_port"]} at {self.user_input["conn_baud"]}bps"
                 )
             )
             success = self.stm_device.connectAndReadInfo(
-                self.conn_port, baud=self.conn_baud, readOptBytes=True
+                self.user_input["conn_port"], baud=self.user_input["conn_baud"], readOptBytes=True
             )
         except Exception as e:
             self.msg_log.write(e)
@@ -955,11 +960,11 @@ class StmApp(App):
         check parameters are set and connect to
         the STM device bootloader
         """
-        if len(self.conn_port) == 0:
+        if len(self.user_input["conn_port"]) == 0:
             self.msg_log.write(FailMessage("Must configure port first"))
         elif (
-            self.conn_baud < STM_BOOTLOADER_MIN_BAUD
-            or self.conn_baud > STM_BOOTLOADER_MAX_BAUD
+            self.user_input["conn_baud"] < STM_BOOTLOADER_MIN_BAUD
+            or self.user_input["conn_baud"] > STM_BOOTLOADER_MAX_BAUD
         ):
             self.msg_log.write(
                 FailMessage(
@@ -976,7 +981,7 @@ class StmApp(App):
         update menu to readwrite and update tables
         """
         self.change_state(STATE_READ_MEM)
-        self.address = self.stm_device.device.flash_memory.start
+        self.user_input["address"] = self.stm_device.device.flash_memory.start
 
     async def handle_erase_keypress(self):
         """handle the erase keypress
@@ -1027,11 +1032,11 @@ class StmApp(App):
 
     async def handle_filepath_keypress(self):
         await self.input_to_attribute("Enter file path", "filepath")
-        if not os.path.exists(self.filepath):
+        if not os.path.exists(self.user_input["filepath"]):
             self.msg_log.write(
-                ErrorMessage(f"Error: invalid file path {self.filepath}")
+                ErrorMessage(f"Error: invalid file path {self.user_input["filepath"]}")
             )
-            self.filepath = ""
+            self.user_input["filepath"] = ""
         self.update_info_section()
 
     async def handle_offset_keypress(self):
@@ -1041,28 +1046,28 @@ class StmApp(App):
     async def handle_upload_keypress(self):
         """run sanity checks then upload application"""
         if (
-            self.length > config.MAX_UPLOAD_FILE_LEN
-            or self.length < config.MIN_UPLOAD_FILE_LEN
+            self.user_input["length"] > config.MAX_UPLOAD_FILE_LEN
+            or self.user_input["length"] < config.MIN_UPLOAD_FILE_LEN
         ):
             self.msg_log.write(
                 FailMessage(
                     f"Error - invalid file length (min {config.MIN_UPLOAD_FILE_LEN} max {config.MAX_UPLOAD_FILE_LEN})"
                 )
             )
-            self.length = 0
+            self.user_input["length"] = 0
             self.update_info_section()
             return
 
-        if not self.stm_device.device.flash_memory.is_valid(self.address + self.offset):
+        if not self.stm_device.device.flash_memory.is_valid(self.user_input["address"] + self.user_input["offset"]):
             self.msg_log.write(FailMessage(f"Error - invalid address with offset"))
-            self.offset = 0
+            self.user_input["offset"] = 0
             self.update_info_section()
             return
 
         status = await self.long_running_task(
             self.stm_device.writeApplicationFileToFlash,
-            self.filepath,
-            self.offset,
+            self.user_input["filepath"],
+            self.user_input["offset"],
             colour="green",
         )
 
@@ -1102,16 +1107,16 @@ class StmApp(App):
 
     async def read_from_flash(self):
         """TODO: rename function aligned with the others, task_NAME"""
-        if self.filepath is not None and self.read_len > 0:
+        if self.user_input["filepath"] is not None and self.read_len > 0:
             success = True
             chunks = int(self.read_len / 256)
             rem = int(self.read_len % 256)
 
-            with open(self.filepath, "wb") as f:
+            with open(self.user_input["filepath"], "wb") as f:
                 for i in range(chunks):
                     self.msg_log.write(InfoMessage(f"Reading chunk {i+1}"))
                     success, rx = self.stm_device.readFromFlash(
-                        self.stm_device.device.flash_memory.start + self.offset,
+                        self.stm_device.device.flash_memory.start + self.user_input["offset"],
                         256,
                     )
                     if success:
@@ -1124,7 +1129,7 @@ class StmApp(App):
                     self.msg_log.write(InfoMessage(f"Reading chunk {chunks+1}"))
                     success, rx = self.stm_device.readFromFlash(
                         self.stm_device.device.flash_memory.start
-                        + self.offset
+                        + self.user_input["offset"]
                         + (chunks * 256),
                         rem,
                     )
@@ -1137,14 +1142,14 @@ class StmApp(App):
             if success:
                 self.msg_log.write(
                     SuccessMessage(
-                        f"Succesfully read {self.read_len} bytes from flash into file {self.filepath}"
+                        f"Succesfully read {self.read_len} bytes from flash into file {self.user_input["filepath"]}"
                     )
                 )
 
         # clear the self variables
         self.read_len = 0
-        self.filepath = None
-        self.offset = 0
+        self.user_input["filepath"] = None
+        self.user_input["offset"] = 0
 
     async def on_input_submitted(self, message: Input.Submitted) -> None:
         """handle input received from the input box

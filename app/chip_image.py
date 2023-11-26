@@ -1,8 +1,3 @@
-import sys
-
-sys.path.append("../SerialFlasher")
-from ..SerialFlasher.StmDevice import STMInterface
-
 from rich.text import Text
 
 CHIP_IMG_OFFSET = 12
